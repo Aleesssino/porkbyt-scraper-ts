@@ -3,10 +3,8 @@ import { promises as fsPromises } from "fs";
 import TelegramBot from "node-telegram-bot-api";
 import { sleepFor } from "./utils";
 
-// const token = process.env.TELEGRAM_TOKEN as string;;
-// const chatId = -4234683892;
-const token = process.env.TELEGRAM_TOKEN;
-const chatId = process.env.TELEGRAM_CHAT_ID;
+const token = process.env.TELEGRAM_TOKEN as string;
+const chatId = process.env.TELEGRAM_CHAT_ID as string;
 const jsonFilePath = "data.json";
 
 interface Article {
@@ -27,10 +25,10 @@ const authenticate = async (page: Page) => {
       .click();
 
     await page.locator("#username").click();
-    await page.locator("#username").fill(process.env.EMAIL);
+    await page.locator("#username").fill(br_username);
 
     await page.locator("#password").setTimeout(sleepFor(300, 1600)).click();
-    await page.locator("#password").fill(process.env.PASSWORD);
+    await page.locator("#password").fill(br_password);
 
     await page
       .locator('form button[type="submit"]')
