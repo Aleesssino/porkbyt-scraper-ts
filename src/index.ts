@@ -4,6 +4,17 @@ import TelegramBot from "node-telegram-bot-api";
 import { sleepFor } from "./utils";
 
 const token = process.env.TELEGRAM_TOKEN as string;;
+const chatId = -4234683892;
+const jsonFilePath = "data.json";
+
+// Define the Article type
+interface Article {
+  title: string;
+  link: string;
+  sent: boolean;
+}
+
+// authenticate and log in to website
 const authenticate = async (page: Page) => {
   // $x(`//input[@name="username"]`)
   try {
@@ -17,7 +28,7 @@ const authenticate = async (page: Page) => {
     await page.locator("#username").click();
     await page.locator("#username").fill(br_username);
 
-    await page.locator("#password").setTimeout(sleepFor(300, 600)).click();
+    await page.locator("#password").setTimeout(sleepFor(300, 1600)).click();
     await page.locator("#password").fill(br_password);
 
     await page
@@ -28,6 +39,30 @@ const authenticate = async (page: Page) => {
     await navigationPromise;
   } catch (error) {
     console.log("auth error", error);
+  }
+};
+
+// Function to read JSON data from file
+const readJsonFile = async (filePath: string): Promise<Article[]> => {
+  try {
+    const data = await fsPromises.readFile(filePath, "utf-8");
+    return JSON.parse(data);
+  } catch (error) {
+    console.error("Error reading JSON file:", error);
+    return [];
+  }
+};
+
+// Function to write JSON data to file
+const writeJsonFile = async (
+  filePath: string,
+  data: Article[],
+): Promise<void> => {
+  try {
+    await fsPromises.writeFile(filePath, JSON.stringify(data, null, 2));
+    console.log("Successfully saved JSON");
+  } catch (error) {
+    console.error("Error saving JSON file:", error);
   }
 };
 
@@ -49,17 +84,18 @@ const scrapeNewOffers = async () => {
 
     // close modal
     await page.locator("#path2").setTimeout(sleepFor(2500, 3400)).click();
-    const xButton = page.locator("button span::-p-text(Nepovolit)");
-    await xButton.click();
+    await page.locator("button span::-p-text(Nepovolit)").click();
 
     // Zobrazit nabídky
-    await page.locator("a ::-p-text(Zobrazit nabídky)").click();
+    await page
+      .locator("a ::-p-text(Zobrazit nabídky)")
+      .setTimeout(sleepFor(1000, 1345))
+      .click();
     await page.goto(filterURL);
 
     // (`/html/body/div[1]/main/section/div/div[2]/div/div[7]/section/article/div[2]`)    const articleData = await page.evaluate(() => {
     const articleData = await page.evaluate(() => {
-      const data: { title: string; link: string; seen: boolean }[] = [];
-
+      const data: Article[] = [];
       const articles = document.querySelectorAll(
         ".PropertyCard_propertyCardContent__osPAM",
       );
@@ -78,14 +114,9 @@ const scrapeNewOffers = async () => {
           ? anchorElement.getAttribute("href") || "No link found"
           : "No link found";
 
-        const seen =
-          document
-            .querySelector(".PropertyCard_propertyCardTags__ocixT")
-            ?.textContent?.includes("Zobrazeno") || false;
-
-        // Add article data to array
-        data.push({ title, link, seen });
+        data.push({ title, link, sent: false });
       });
+      console.log(data);
       return data;
     });
 
@@ -94,49 +125,65 @@ const scrapeNewOffers = async () => {
     await browser.close();
 
     // Create JSON
-    async function saveArticleData() {
-      try {
-        await fsPromises.writeFile(
-          "data.json",
-          JSON.stringify(articleData, null, 2),
-        );
-        console.log("Successfully saved JSON");
-      } catch (err) {
-        console.error("Error saving JSON:", err);
-      }
-    }
-
-    saveArticleData();
+    // async function saveArticleData() {
+    //   try {
+    //     await fsPromises.writeFile(
+    //       "data.json",
+    //       JSON.stringify(articleData, null, 2),
+    //     );
+    //     console.log("Successfully saved JSON");
+    //   } catch (err) {
+    //     console.error("Error saving JSON:", err);
+    //   }
+    // }
+    //
+    // saveArticleData();
+    return articleData;
   } catch (error) {
     console.log(error);
+    return [];
   }
 };
 
-const main = async () => {
-  await scrapeNewOffers();
+// Function to send JSON data
+const sendJsonData = async (
+  bot: TelegramBot,
+  data: Article[],
+): Promise<void> => {
+  try {
+    const message = `Here is your data:\n\n${JSON.stringify(data, null, 2)}`;
+    await bot.sendMessage(chatId, message);
+    console.log(`JSON data sent to chat ID ${chatId} successfully.`);
+  } catch (error) {
+    console.error("Error sending JSON data:", error);
+  }
+};
 
-  // Function to send JSON data
+// Main function to handle scraping and sending messages
+const main = async (): Promise<void> => {
   const bot = new TelegramBot(token, { polling: true });
-  const sendJsonData = async (chatId: number) => {
-    try {
-      // Read JSON file
-      const data = await fsPromises.readFile("data.json", "utf-8");
 
-      const jsonData = JSON.parse(data);
+  const newData = await scrapeNewOffers();
+  const currentData = await readJsonFile(jsonFilePath);
 
-      // Format the message
-      const message = `Here is your data:\n\n${JSON.stringify(jsonData, null, 2)}`;
+  // Find new items that haven't been sent yet
+  const newItems = newData.filter(
+    (item) =>
+      !currentData.some(
+        (existingItem) => existingItem.link === item.link && existingItem.sent,
+      ),
+  );
 
-      await bot.sendMessage(chatId, message);
+  if (newItems.length > 0) {
+    await sendJsonData(bot, newItems);
 
-      console.log(`JSON data sent to chat ID ${chatId} successfully.`);
-    } catch (err) {
-      console.error("Error reading or sending JSON data:", err);
-    }
-  };
-
-  const chatId = 6789617763;
-  await sendJsonData(chatId);
+    // Mark items as sent and update JSON file
+    const updatedData = [
+      ...currentData,
+      ...newItems.map((item) => ({ ...item, sent: true })),
+    ];
+    await writeJsonFile(jsonFilePath, updatedData);
+  }
 };
 
 main(); // bootstrap
