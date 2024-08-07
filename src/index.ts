@@ -3,11 +3,12 @@ import { promises as fsPromises } from "fs";
 import TelegramBot from "node-telegram-bot-api";
 import { sleepFor } from "./utils";
 
-const token = process.env.TELEGRAM_TOKEN as string;;
-const chatId = -4234683892;
+// const token = process.env.TELEGRAM_TOKEN as string;;
+// const chatId = -4234683892;
+const token = process.env.TELEGRAM_TOKEN;
+const chatId = process.env.TELEGRAM_CHAT_ID;
 const jsonFilePath = "data.json";
 
-// Define the Article type
 interface Article {
   title: string;
   link: string;
@@ -26,10 +27,10 @@ const authenticate = async (page: Page) => {
       .click();
 
     await page.locator("#username").click();
-    await page.locator("#username").fill(br_username);
+    await page.locator("#username").fill(process.env.EMAIL);
 
     await page.locator("#password").setTimeout(sleepFor(300, 1600)).click();
-    await page.locator("#password").fill(br_password);
+    await page.locator("#password").fill(process.env.PASSWORD);
 
     await page
       .locator('form button[type="submit"]')
@@ -66,6 +67,7 @@ const writeJsonFile = async (
   }
 };
 
+// scrape data
 const scrapeNewOffers = async () => {
   const loginURL = "https://www.bezrealitky.cz/login";
   const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=670830";
@@ -86,7 +88,7 @@ const scrapeNewOffers = async () => {
     await page.locator("#path2").setTimeout(sleepFor(2500, 3400)).click();
     await page.locator("button span::-p-text(Nepovolit)").click();
 
-    // Zobrazit nabídky
+    // filter
     await page
       .locator("a ::-p-text(Zobrazit nabídky)")
       .setTimeout(sleepFor(1000, 1345))
@@ -124,20 +126,6 @@ const scrapeNewOffers = async () => {
 
     await browser.close();
 
-    // Create JSON
-    // async function saveArticleData() {
-    //   try {
-    //     await fsPromises.writeFile(
-    //       "data.json",
-    //       JSON.stringify(articleData, null, 2),
-    //     );
-    //     console.log("Successfully saved JSON");
-    //   } catch (err) {
-    //     console.error("Error saving JSON:", err);
-    //   }
-    // }
-    //
-    // saveArticleData();
     return articleData;
   } catch (error) {
     console.log(error);
@@ -184,6 +172,11 @@ const main = async (): Promise<void> => {
     ];
     await writeJsonFile(jsonFilePath, updatedData);
   }
+
+  setTimeout(() => {
+    console.log("Exiting program...");
+    process.exit(0);
+  }, 150000);
 };
 
 main(); // bootstrap
