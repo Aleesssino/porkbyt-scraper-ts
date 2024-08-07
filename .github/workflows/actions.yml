@@ -5,8 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 * * * *" # Runs every hour
-
+    - cron: "*/6 * * * *"
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,6 +18,14 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: "16"
+
+      - name: Cache Puppeteer Browser
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ runner.os }}-puppeteer-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-puppeteer-
 
       - name: Install system dependencies
         run: |
@@ -80,15 +87,11 @@ jobs:
       - name: Check for changes
         id: changes
         run: |
-          git diff --quiet data.json || echo "Changes detected" > /tmp/changes.txt
-          if [ -f /tmp/changes.txt ]; then
-            echo "has_changes=true" >> $GITHUB_ENV
-          else
-            echo "has_changes=false" >> $GITHUB_ENV
-          fi
+          git diff --exit-code data.json || echo "Changes detected" > /tmp/changes.txt
+        continue-on-error: true
 
       - name: Commit changes
-        if: env.has_changes == 'true'
+        if: steps.changes.outputs.changes == 'Changes detected'
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
