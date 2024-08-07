@@ -1,8 +1,9 @@
-import { promises as fsPromises } from "fs";
 import puppeteer, { Browser, Page } from "puppeteer";
-
+import { promises as fsPromises } from "fs";
+import TelegramBot from "node-telegram-bot-api";
 import { sleepFor } from "./utils";
 
+const token = process.env.TELEGRAM_TOKEN as string;;
 const authenticate = async (page: Page) => {
   // $x(`//input[@name="username"]`)
   try {
@@ -13,7 +14,6 @@ const authenticate = async (page: Page) => {
       .locator("#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll")
       .click();
 
-    console.log(process.env.AUTH_USERNAME);
     await page.locator("#username").click();
     await page.locator("#username").fill(br_username);
 
@@ -114,6 +114,29 @@ const scrapeNewOffers = async () => {
 
 const main = async () => {
   await scrapeNewOffers();
+
+  // Function to send JSON data
+  const bot = new TelegramBot(token, { polling: true });
+  const sendJsonData = async (chatId: number) => {
+    try {
+      // Read JSON file
+      const data = await fsPromises.readFile("data.json", "utf-8");
+
+      const jsonData = JSON.parse(data);
+
+      // Format the message
+      const message = `Here is your data:\n\n${JSON.stringify(jsonData, null, 2)}`;
+
+      await bot.sendMessage(chatId, message);
+
+      console.log(`JSON data sent to chat ID ${chatId} successfully.`);
+    } catch (err) {
+      console.error("Error reading or sending JSON data:", err);
+    }
+  };
+
+  const chatId = 6789617763;
+  await sendJsonData(chatId);
 };
 
 main(); // bootstrap
