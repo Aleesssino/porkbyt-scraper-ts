@@ -71,7 +71,7 @@ const scrapeNewOffers = async () => {
   const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=670830";
   try {
     const browser: Browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       defaultViewport: null,
     });
     const page = await browser.newPage();
