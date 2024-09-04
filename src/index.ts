@@ -2,7 +2,7 @@ import puppeteer, { Browser, Page } from "puppeteer";
 import { promises as fsPromises } from "fs";
 import TelegramBot from "node-telegram-bot-api";
 import { sleepFor } from "./utils";
-
+import "dotenv/config";
 const token = process.env.TELEGRAM_TOKEN as string;
 const chatId = process.env.TELEGRAM_CHAT_ID as string;
 const jsonFilePath = "data.json";
