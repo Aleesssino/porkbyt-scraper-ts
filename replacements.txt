@@ -1,2 +1,0 @@
-await page.locator("#username").fill(br_username);==>await page.locator("#username").fill(br_username);
-await page.locator("#password").fill(br_password);==>await page.locator("#password").fill(br_password);
