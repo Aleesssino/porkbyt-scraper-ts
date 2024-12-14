@@ -5,6 +5,8 @@ import { sleepFor } from "./utils";
 import "dotenv/config";
 const token = process.env.TELEGRAM_TOKEN as string;
 const chatId = process.env.TELEGRAM_CHAT_ID as string;
+const br_username = process.env.BR_USERNAME as string;
+const br_password = process.env.BR_PASSWORD as string;
 const jsonFilePath = "data.json";
 
 interface Article {
@@ -71,7 +73,7 @@ const scrapeNewOffers = async () => {
   const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=670830";
   try {
     const browser: Browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       defaultViewport: null,
     });
     const page = await browser.newPage();
