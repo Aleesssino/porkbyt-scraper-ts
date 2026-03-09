@@ -72,7 +72,7 @@ const writeJsonFile = async (
 
 const scrapeNewOffers = async () => {
   const loginURL = "https://www.bezrealitky.cz/login";
-  const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=819320";
+  const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=817178";
   let browser: Browser | undefined;
   try {
     browser = await puppeteer.launch({
