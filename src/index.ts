@@ -1,10 +1,15 @@
 import puppeteer, { Browser, Page } from "puppeteer";
 import { promises as fsPromises } from "fs";
-import TelegramBot from "node-telegram-bot-api";
-import { sleepFor } from "./utils";
+import { simulateHumanDelay } from "./utils";
 import "dotenv/config";
-const token = process.env.TELEGRAM_TOKEN as string;
-const chatId = process.env.TELEGRAM_CHAT_ID as string;
+import {
+  Client,
+  EmbedBuilder,
+  GatewayIntentBits,
+  TextChannel,
+} from "discord.js";
+const d_token = process.env.DISCORD_TOKEN as string;
+const d_chatId = process.env.DISCORD_CHAT_ID as string;
 const br_username = process.env.BR_USERNAME as string;
 const br_password = process.env.BR_PASSWORD as string;
 const jsonFilePath = "data.json";
@@ -12,11 +17,9 @@ const jsonFilePath = "data.json";
 interface Article {
   title: string;
   link: string;
-  sent: boolean;
 }
 
-// authenticate and log in to website
-const authenticate = async (page: Page) => {
+const authAndLogin = async (page: Page) => {
   // $x(`//input[@name="username"]`)
   try {
     await page.waitForSelector(
@@ -29,21 +32,22 @@ const authenticate = async (page: Page) => {
     await page.locator("#username").click();
     await page.locator("#username").fill(br_username);
 
-    await page.locator("#password").setTimeout(sleepFor(300, 1600)).click();
+    await simulateHumanDelay();
+
+    await page.locator("#password").click();
     await page.locator("#password").fill(br_password);
 
-    await page
-      .locator('form button[type="submit"]')
-      .setTimeout(sleepFor(500, 1500))
-      .click();
+    await simulateHumanDelay();
+
+    await page.locator('form button[type="submit"]').click();
     const navigationPromise = page.waitForNavigation();
     await navigationPromise;
   } catch (error) {
     console.log("auth error", error);
+    throw error;
   }
 };
 
-// Function to read JSON data from file
 const readJsonFile = async (filePath: string): Promise<Article[]> => {
   try {
     const data = await fsPromises.readFile(filePath, "utf-8");
@@ -54,7 +58,6 @@ const readJsonFile = async (filePath: string): Promise<Article[]> => {
   }
 };
 
-// Function to write JSON data to file
 const writeJsonFile = async (
   filePath: string,
   data: Article[],
@@ -67,13 +70,13 @@ const writeJsonFile = async (
   }
 };
 
-// scrape data
 const scrapeNewOffers = async () => {
   const loginURL = "https://www.bezrealitky.cz/login";
-  const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=670830";
+  const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=819320";
+  let browser: Browser | undefined;
   try {
-    const browser: Browser = await puppeteer.launch({
-      headless: true,
+    browser = await puppeteer.launch({
+      headless: false,
       defaultViewport: null,
     });
     const page = await browser.newPage();
@@ -82,101 +85,130 @@ const scrapeNewOffers = async () => {
     await page.goto(loginURL, { waitUntil: "networkidle2" });
 
     // authenification
-    await authenticate(page);
+    await authAndLogin(page);
+
+    await simulateHumanDelay();
 
     // close modal
-    await page.locator("#path2").setTimeout(sleepFor(2500, 3400)).click();
+    await page.locator("#path2").click();
     await page.locator("button span::-p-text(Nepovolit)").click();
 
+    await simulateHumanDelay();
+
     // filter
-    await page
-      .locator("a ::-p-text(Zobrazit nabídky)")
-      .setTimeout(sleepFor(1000, 1345))
-      .click();
+    await page.locator("a ::-p-text(Zobrazit nabídky)").click();
     await page.goto(filterURL);
 
-    // (`/html/body/div[1]/main/section/div/div[2]/div/div[7]/section/article/div[2]`)    const articleData = await page.evaluate(() => {
+    // $x(`/html/body/div[1]/main/section/div/div[2]/div/div[7]/section/article/div[2]`)
     const articleData = await page.evaluate(() => {
       const data: Article[] = [];
       const articles = document.querySelectorAll(
         ".PropertyCard_propertyCardContent__osPAM",
       );
 
-      // Iterate over each article
       articles.forEach((article) => {
-        // Safely check for the existence of the title element
         const titleElement = article.querySelector("h2");
         const title = titleElement
           ? titleElement.textContent?.trim() || "No title found"
           : "No title found";
 
-        // check for the existence of the anchor element
         const anchorElement = article.querySelector("a");
         const link = anchorElement
           ? anchorElement.getAttribute("href") || "No link found"
           : "No link found";
 
-        data.push({ title, link, sent: false });
+        data.push({ title, link });
       });
-      console.log(data);
       return data;
     });
 
-    console.log("Article Data:", articleData);
+    const validData = articleData.filter(
+      (item) =>
+        item.title !== "No title found" && item.link !== "No link found",
+    );
 
-    await browser.close();
+    console.log("Article Data:", validData);
 
-    return articleData;
+    return validData;
   } catch (error) {
-    console.log(error);
+    console.log("Scrape error:", error);
     return [];
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 };
 
-// Function to send JSON data
-const sendJsonData = async (
-  bot: TelegramBot,
-  data: Article[],
-): Promise<void> => {
+const sendDiscordData = async (data: Article[]): Promise<void> => {
+  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
   try {
-    const message = `Here is your data:\n\n${JSON.stringify(data, null, 2)}`;
-    await bot.sendMessage(chatId, message);
-    console.log(`JSON data sent to chat ID ${chatId} successfully.`);
+    await client.login(d_token);
+    const channel = (await client.channels.fetch(d_chatId)) as TextChannel;
+
+    if (!channel) throw new Error("Could't find Discord channel.");
+
+    for (const item of data) {
+      const embed = new EmbedBuilder()
+        .setTitle(item.title)
+        .setURL(
+          item.link.startsWith("http")
+            ? item.link
+            : `https://www.bezrealitky.cz${item.link}`,
+        )
+        .setColor(0x00ae86)
+        .setTimestamp();
+
+      await channel.send({ embeds: [embed] });
+      await new Promise((res) => setTimeout(res, 500));
+    }
+    console.log(`Sent ${data.length} items to Discord.`);
   } catch (error) {
-    console.error("Error sending JSON data:", error);
+    console.error("Discord send error:", error);
+  } finally {
+    client.destroy();
   }
 };
 
-// Main function to handle scraping and sending messages
+const sendDiscordError = async (errorMessage: string): Promise<void> => {
+  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  try {
+    await client.login(d_token);
+    const channel = (await client.channels.fetch(d_chatId)) as TextChannel;
+    if (channel) {
+      await channel.send(`⚠️ **Scraper Error:** ${errorMessage}`);
+    }
+  } finally {
+    client.destroy();
+  }
+};
+
 const main = async (): Promise<void> => {
-  const bot = new TelegramBot(token, { polling: true });
+  let newData: Article[] = [];
+  try {
+    newData = await scrapeNewOffers();
+  } catch (error) {
+    await sendDiscordError((error as Error).message);
+    process.exit(1);
+  }
 
-  const newData = await scrapeNewOffers();
   const currentData = await readJsonFile(jsonFilePath);
-
-  // Find new items that haven't been sent yet
   const newItems = newData.filter(
     (item) =>
-      !currentData.some(
-        (existingItem) => existingItem.link === item.link && existingItem.sent,
-      ),
+      !currentData.some((existingItem) => existingItem.link === item.link),
   );
 
   if (newItems.length > 0) {
-    await sendJsonData(bot, newItems);
-
-    // Mark items as sent and update JSON file
-    const updatedData = [
-      ...currentData,
-      ...newItems.map((item) => ({ ...item, sent: true })),
-    ];
+    await sendDiscordData(newItems);
+    const updatedData = [...currentData, ...newItems];
     await writeJsonFile(jsonFilePath, updatedData);
+  } else {
+    console.log("No new items to send.");
   }
 
-  setTimeout(() => {
-    console.log("Exiting program...");
-    process.exit(0);
-  }, 150000);
+  console.log("Task complete.");
+  process.exit(0);
 };
 
-main(); // bootstrap
+main();
