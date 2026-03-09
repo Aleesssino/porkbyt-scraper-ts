@@ -74,6 +74,7 @@ const scrapeNewOffers = async () => {
   const loginURL = "https://www.bezrealitky.cz/login";
   const filterURL = "https://www.bezrealitky.cz/vyhledat?watchdog=817178";
   let browser: Browser | undefined;
+
   try {
     browser = await puppeteer.launch({
       headless: false,
@@ -176,8 +177,9 @@ const sendDiscordError = async (errorMessage: string): Promise<void> => {
   try {
     await client.login(d_token);
     const channel = (await client.channels.fetch(d_chatId)) as TextChannel;
+
     if (channel) {
-      await channel.send(`⚠️ **Scraper Error:** ${errorMessage}`);
+      await channel.send(`Scraper Error: ${errorMessage}`);
     }
   } finally {
     client.destroy();
