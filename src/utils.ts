@@ -1,9 +1,9 @@
-const randIntFromInterval = (min: number, max: number) => {
-  return Math.floor(Math.random() * (max - min) + min);
-};
+export const simulateHumanDelay = () => {
+  const min = 1000;
+  const max = 2500;
 
-export const sleepFor = (min: number, max: number) => {
-  let duration = randIntFromInterval(min, max);
-  console.log("waiting for ", duration / 1000, "seconds");
-  return duration;
+  const duration = Math.floor(Math.random() * (max - min) + min);
+
+  console.log(`[Wait] ${duration}ms`);
+  return new Promise((resolve) => setTimeout(resolve, duration));
 };
