@@ -40,8 +40,7 @@ const authAndLogin = async (page: Page) => {
     await simulateHumanDelay();
 
     await page.locator('form button[type="submit"]').click();
-    const navigationPromise = page.waitForNavigation();
-    await navigationPromise;
+    await page.waitForNavigation({ waitUntil: "networkidle2" });
   } catch (error) {
     console.log("auth error", error);
     throw error;
@@ -87,6 +86,7 @@ const scrapeNewOffers = async () => {
     const page = await browser.newPage();
 
     await page.setViewport({ width: 1950, height: 1591, deviceScaleFactor: 1 });
+    page.setDefaultNavigationTimeout(60000);
     await page.goto(loginURL, { waitUntil: "networkidle2" });
 
     // authenification
@@ -102,7 +102,7 @@ const scrapeNewOffers = async () => {
 
     // filter
     await page.locator("a ::-p-text(Zobrazit nabídky)").click();
-    await page.goto(filterURL);
+    await page.goto(filterURL, { waitUntil: "networkidle2" });
 
     // $x(`/html/body/div[1]/main/section/div/div[2]/div/div[7]/section/article/div[2]`)
     const articleData = await page.evaluate(() => {

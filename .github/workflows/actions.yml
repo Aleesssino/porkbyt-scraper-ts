@@ -11,52 +11,56 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: scraper
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: 10
+          run_install: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: "pnpm"
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Cache Puppeteer Browser
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.cache/puppeteer
-          key: ${{ runner.os }}-puppeteer-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-puppeteer-
+          key: ${{ runner.os }}-puppeteer-chrome
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgbm-dev wget gnupg
-          npx puppeteer browsers install chrome
-
-      - name: Install dependencies
-        run: pnpm install
+      - name: Install Chrome (if cache missing)
+        run: npx puppeteer browsers install chrome
 
       - name: Compile TypeScript
         run: pnpm run build
 
-      - name: Run scraper
+      - name: Run scraper (with retry)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: node dist/index.js
         env:
           BR_USERNAME: ${{ secrets.BR_USERNAME }}
           BR_PASSWORD: ${{ secrets.BR_PASSWORD }}
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DISCORD_CHAT_ID: ${{ secrets.DISCORD_CHAT_ID }}
-        run: node dist/index.js
 
       - name: Commit and Push
         run: |
