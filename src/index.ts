@@ -77,7 +77,7 @@ const scrapeNewOffers = async () => {
 
   try {
     browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       defaultViewport: null,
     });
     const page = await browser.newPage();
